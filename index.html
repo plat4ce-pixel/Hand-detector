@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Hand Detector</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #121212; color: white; }
+        .container { position: relative; display: inline-block; margin-top: 20px; border: 5px solid #333; border-radius: 15px; overflow: hidden; }
+        #output_canvas { position: absolute; left: 0; top: 0; }
+        #status { font-size: 2rem; font-weight: bold; margin-top: 20px; padding: 10px; border-radius: 10px; transition: 0.3s; }
+        .hallo { color: #4CAF50; }
+        .love { color: #FF4081; }
+        .toxic { color: #f44336; background: rgba(244, 67, 54, 0.2); }
+    </style>
+</head>
+<body>
+
+    <h1>AI Hand Gesture Detector</h1>
+    <p>Gunakan tangan Anda di depan kamera</p>
+
+    <div class="container">
+        <video id="input_video" style="display:none;"></video>
+        <canvas id="output_canvas" width="640px" height="480px"></canvas>
+    </div>
+
+    <div id="status">Menunggu Deteksi...</div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusDiv = document.getElementById('status');
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 5});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 2});
+                    
+                    detectGesture(landmarks);
+                }
+            } else {
+                statusDiv.innerText = "Tangan tidak terlihat";
+                statusDiv.className = "";
+            }
+            canvasCtx.restore();
+        }
+
+        function detectGesture(lm) {
+            // Logika sederhana berdasarkan posisi koordinat Y ujung jari
+            // lm[i].y: Semakin kecil nilainya, semakin tinggi posisinya di layar
+            
+            const thumbUp = lm[4].y < lm[3].y;
+            const indexUp = lm[8].y < lm[6].y;
+            const middleUp = lm[12].y < lm[10].y;
+            const ringUp = lm[16].y < lm[14].y;
+            const pinkyUp = lm[20].y < lm[18].y;
+
+            // 1.🖐 Hallo (Semua jari terbuka)
+            if (indexUp && middleUp && ringUp && pinkyUp) {
+                statusDiv.innerText = "🖐 Hallo";
+                statusDiv.className = "hallo";
+            } 
+            // 2. 🖕 Tidak Sopan (Hanya jari tengah yang naik signifikan)
+            else if (middleUp && !indexUp && !ringUp && !pinkyUp) {
+                statusDiv.innerText = "🖕 Tidak Sopan";
+                statusDiv.className = "toxic";
+                // Efek keluar/reset jika terdeteksi toxic
+                setTimeout(() => { window.location.reload(); }, 2000); 
+            }
+            // 3. 🫰 I Love You (Finger Heart - pendekatan sederhana)
+            else if (thumbUp && indexUp && !middleUp && !ringUp) {
+                statusDiv.innerText = "🫰 I Love You";
+                statusDiv.className = "love";
+            }
+            else {
+                statusDiv.innerText = "Mendeteksi...";
+                statusDiv.className = "";
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+    </script>
+</body>
+</html>
