@@ -15,6 +15,7 @@
         #status { font-size: 2.5rem; font-weight: bold; margin-top: 20px; min-height: 60px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
         .hallo { color: #4CAF50; }
         .love { color: #FF4081; }
+        .qisthy { color: #00E5FF; }
         .toxic { color: #f44336; animation: shake 0.2s infinite; }
         @keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(5px); } 50% { transform: translateX(-5px); } 100% { transform: translateX(0); } }
     </style>
@@ -54,13 +55,11 @@
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                // Deteksi jika ada dua tangan untuk gestur "Suka" (🫶)
                 if (results.multiHandLandmarks.length === 2) {
                     statusDiv.innerText = "🫶 Suka";
                     statusDiv.className = "love";
                     speak("Suka");
                 } else {
-                    // Deteksi gestur satu tangan
                     for (const landmarks of results.multiHandLandmarks) {
                         detectOneHandGesture(landmarks);
                     }
@@ -84,39 +83,58 @@
             const middleUp = lm[12].y < lm[10].y;
             const ringUp = lm[16].y < lm[14].y;
             const pinkyUp = lm[20].y < lm[18].y;
+            
+            // Deteksi telapak tangan menghadap atas (🫴 Qisthy)
+            // Sederhananya: pergelangan tangan (0) lebih rendah dari telapak tengah (9)
+            const palmUp = lm[0].y > lm[9].y && lm[4].x < lm[20].x;
+
             const distThumbIndex = Math.sqrt(Math.pow(lm[4].x - lm[8].x, 2) + Math.pow(lm[4].y - lm[8].y, 2));
 
+            // 1. 🖕 Tidak Sopan
             if (middleUp && !indexUp && !ringUp && !pinkyUp) {
                 statusDiv.innerText = "🖕 Tidak Sopan";
                 statusDiv.className = "toxic";
                 speak("Tidak sopan");
                 setTimeout(() => { window.location.href = "about:blank"; }, 2000); 
             }
-            else if (indexUp && middleUp && ringUp && pinkyUp && !thumbUp) {
-                statusDiv.innerText = "🙏 IZINN IZINN";
-                statusDiv.className = "hallo";
-                speak("Izin izin");
+            // 2. 🫴 Qisthy (Tangan terbuka menghadap ke atas/seperti meminta)
+            else if (thumbUp && indexUp && middleUp && ringUp && pinkyUp && lm[12].y > lm[10].y * 0.8) {
+                 // Logika disesuaikan untuk posisi tangan "cup"
+                 statusDiv.innerText = "🫴 Qisthy";
+                 statusDiv.className = "qisthy";
+                 speak("Qisthy");
             }
+            // 3. 🙏 Terima Kasih (Menggantikan Izin Izin)
+            else if (indexUp && middleUp && ringUp && pinkyUp && !thumbUp) {
+                statusDiv.innerText = "🙏 Terima Kasih";
+                statusDiv.className = "hallo";
+                speak("Terima kasih");
+            }
+            // 4. 🖐 Hallo
             else if (indexUp && middleUp && ringUp && pinkyUp && thumbUp) {
                 statusDiv.innerText = "🖐 Hallo";
                 statusDiv.className = "hallo";
                 speak("Halo");
             }
+            // 5. 👌 Ok
             else if (distThumbIndex < 0.05 && middleUp && ringUp && pinkyUp) {
                 statusDiv.innerText = "👌 Ok";
                 statusDiv.className = "hallo";
                 speak("Oke");
             }
+            // 6. ✌️ Namaku
             else if (indexUp && middleUp && !ringUp && !pinkyUp) {
                 statusDiv.innerText = "✌️ Namaku";
                 statusDiv.className = "love";
                 speak("Namaku");
             }
+            // 7. ☝️ Febri
             else if (indexUp && !middleUp && !ringUp && !pinkyUp) {
                 statusDiv.innerText = "☝️ Febri";
                 statusDiv.className = "love";
                 speak("Febri");
             }
+            // 8. 🫰 I Love You
             else if (thumbUp && indexUp && !middleUp && !ringUp && !pinkyUp) {
                 statusDiv.innerText = "🫰 I Love You";
                 speak("I love you");
@@ -124,8 +142,6 @@
         }
 
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        
-        // maxNumHands diubah menjadi 2 agar bisa deteksi simbol hati 🫶
         hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
         hands.onResults(onResults);
 
